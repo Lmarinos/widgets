@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Αντίστροφη Μέτρηση</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #111827;
+      color: #ffffff;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 650px;
+      background: #1f2937;
+      border-radius: 22px;
+      padding: 32px 20px;
+      box-sizing: border-box;
+      text-align: center;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.35);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 32px;
+    }
+
+    .message {
+      color: #d1d5db;
+      font-size: 18px;
+      margin-bottom: 28px;
+    }
+
+    .countdown {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .unit {
+      background: #374151;
+      border-radius: 16px;
+      padding: 18px 6px;
+    }
+
+    .number {
+      display: block;
+      font-size: 42px;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    .label {
+      display: block;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+
+    .deadline {
+      margin-top: 26px;
+      color: #e5e7eb;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    .expired {
+      display: none;
+      font-size: 38px;
+      font-weight: bold;
+      color: #f87171;
+      margin: 30px 0;
+    }
+
+    .error {
+      display: none;
+      margin-top: 20px;
+      color: #fbbf24;
+      font-size: 15px;
+    }
+
+    @media (max-width: 520px) {
+      .countdown {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      h1 {
+        font-size: 27px;
+      }
+
+      .number {
+        font-size: 38px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Η προθεσμία λήγει σε</h1>
+    <div class="message">Περιμένω την απάντησή σου.</div>
+
+    <div id="countdown" class="countdown">
+      <div class="unit">
+        <span id="days" class="number">--</span>
+        <span class="label">ΗΜΕΡΕΣ</span>
+      </div>
+      <div class="unit">
+        <span id="hours" class="number">--</span>
+        <span class="label">ΩΡΕΣ</span>
+      </div>
+      <div class="unit">
+        <span id="minutes" class="number">--</span>
+        <span class="label">ΛΕΠΤΑ</span>
+      </div>
+      <div class="unit">
+        <span id="seconds" class="number">--</span>
+        <span class="label">ΔΕΥΤΕΡΟΛΕΠΤΑ</span>
+      </div>
+    </div>
+
+    <div id="expired" class="expired">Η προθεσμία έληξε.</div>
+
+    <div class="deadline">
+      Έναρξη: Παρασκευή 17 Ιουλίου 2026, 22:00<br>
+      Λήξη: Κυριακή 19 Ιουλίου 2026, 22:00
+    </div>
+
+    <div id="error" class="error">
+      Το πρόγραμμα περιήγησης δεν εκτέλεσε το χρονόμετρο.
+      Άνοιξε το αρχείο με Safari ή Chrome.
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var deadline = new Date(2026, 6, 19, 22, 0, 0).getTime();
+      var countdownElement = document.getElementById("countdown");
+      var expiredElement = document.getElementById("expired");
+      var errorElement = document.getElementById("error");
+
+      var daysElement = document.getElementById("days");
+      var hoursElement = document.getElementById("hours");
+      var minutesElement = document.getElementById("minutes");
+      var secondsElement = document.getElementById("seconds");
+
+      function pad(value) {
+        return value < 10 ? "0" + value : String(value);
+      }
+
+      function updateCountdown() {
+        var now = new Date().getTime();
+        var remaining = deadline - now;
+
+        if (remaining <= 0) {
+          countdownElement.style.display = "none";
+          expiredElement.style.display = "block";
+          return false;
+        }
+
+        var totalSeconds = Math.floor(remaining / 1000);
+        var days = Math.floor(totalSeconds / 86400);
+        var hours = Math.floor((totalSeconds % 86400) / 3600);
+        var minutes = Math.floor((totalSeconds % 3600) / 60);
+        var seconds = totalSeconds % 60;
+
+        daysElement.textContent = pad(days);
+        hoursElement.textContent = pad(hours);
+        minutesElement.textContent = pad(minutes);
+        secondsElement.textContent = pad(seconds);
+
+        return true;
+      }
+
+      try {
+        updateCountdown();
+
+        var timer = window.setInterval(function () {
+          var stillRunning = updateCountdown();
+          if (!stillRunning) {
+            window.clearInterval(timer);
+          }
+        }, 1000);
+
+        window.setTimeout(function () {
+          if (daysElement.textContent === "--") {
+            errorElement.style.display = "block";
+          }
+        }, 1500);
+      } catch (e) {
+        errorElement.style.display = "block";
+      }
+    })();
+  </script>
+</body>
+</html>
