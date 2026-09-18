@@ -1,1 +1,360 @@
-dsf
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Ημερολόγιο Διδασκαλίας</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#18283c; background:#f4f7fb; }
+    * { box-sizing:border-box; }
+    body { margin:0; line-height:1.5; }
+    .shell { width:min(1060px, calc(100% - 32px)); margin:32px auto 72px; }
+    header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px; margin-bottom:24px; }
+    h1 { margin:0; font-size:clamp(1.55rem, 4vw, 2.25rem); }
+    h2 { font-size:1.15rem; margin:0 0 18px; }
+    p { margin:5px 0; }
+    .subtle { color:#64748b; font-size:.93rem; }
+    .panel { background:white; border:1px solid #dce5ee; box-shadow:0 8px 25px rgba(18,43,69,.045); border-radius:16px; padding:24px; margin-bottom:18px; }
+    .narrow { max-width:480px; margin:50px auto; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; }
+    .field { display:flex; flex-direction:column; gap:6px; margin:0 0 14px; }
+    label { font-size:.9rem; font-weight:650; }
+    input, textarea, select, button { font:inherit; }
+    input, textarea, select { border:1px solid #cbd5e1; border-radius:9px; padding:11px 12px; background:white; color:#18283c; width:100%; }
+    input:focus, textarea:focus, select:focus { outline:2px solid #93c5fd; outline-offset:1px; }
+    textarea { resize:vertical; min-height:95px; }
+    button { border:0; border-radius:9px; padding:10px 15px; font-weight:650; cursor:pointer; }
+    button:disabled { opacity:.55; cursor:wait; }
+    .primary { background:#1d4ed8; color:white; }
+    .secondary { background:#e9eff8; color:#1d3557; }
+    .danger { background:#fff1f2; color:#be123c; }
+    .actions, .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+    .toolbar { margin:16px 0; }
+    .toolbar > :first-child { flex:1 1 230px; }
+    .toolbar select { flex:0 1 210px; }
+    .status { min-height:24px; margin:12px 0; font-size:.93rem; }
+    .error { color:#b91c1c; }
+    .success { color:#047857; }
+    .entry { border:1px solid #dce5ee; border-radius:12px; padding:17px; margin-bottom:12px; background:white; }
+    .entry-top { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+    .tag { background:#eef2ff; color:#3730a3; font-size:.82rem; font-weight:700; border-radius:99px; padding:4px 10px; }
+    .entry p { white-space:pre-wrap; overflow-wrap:anywhere; margin:6px 0; }
+    .entry .actions { margin-top:12px; }
+    .hidden { display:none !important; }
+    #loading { text-align:center; margin:50px auto; }
+    @media(max-width:620px) { .shell { width:calc(100% - 24px); margin-top:19px; } .panel { padding:17px; } .grid { grid-template-columns:1fr; gap:0; } .toolbar select { flex:1 1 160px; } }
+  </style>
+  <!-- Επίσημος τρόπος χρήσης της Supabase JS από CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>📘 Ημερολόγιο Διδασκαλίας</h1>
+        <p class="subtle">Ύλη, ασκήσεις και σημειώσεις ανά τμήμα</p>
+      </div>
+      <div id="account" class="actions hidden"><span id="user-email" class="subtle"></span><button id="logout" type="button" class="secondary">Αποσύνδεση</button></div>
+    </header>
+
+    <div id="loading" class="subtle">Φόρτωση ημερολογίου…</div>
+
+    <section id="setup" class="panel narrow hidden">
+      <h2>Χρειάζεται μια μικρή ρύθμιση</h2>
+      <p>Άνοιξε το αρχείο με ένα πρόγραμμα επεξεργασίας κειμένου και συμπλήρωσε τα <code>SUPABASE_URL</code> και <code>SUPABASE_PUBLISHABLE_KEY</code> στην αρχή του JavaScript. Χρησιμοποίησε μόνο το δημόσιο publishable key, ποτέ secret/service_role.</p>
+      <p class="subtle">Για κοινή πρόσβαση από όλες τις συσκευές, ανέβασε το αρχείο στο GitHub Pages αφού το ρυθμίσεις.</p>
+    </section>
+
+    <section id="login-view" class="panel narrow hidden" aria-labelledby="login-title">
+      <h2 id="login-title">Σύνδεση</h2>
+      <form id="login-form">
+        <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="username" required></div>
+        <div class="field"><label for="password">Κωδικός ημερολογίου</label><input id="password" type="password" autocomplete="current-password" required></div>
+        <button id="login-btn" class="primary" type="submit">Σύνδεση</button>
+      </form>
+      <div id="login-status" class="status" role="status" aria-live="polite"></div>
+      <p class="subtle">Ο λογαριασμός δημιουργείται από το Supabase Dashboard → Authentication → Users. Δεν υπάρχει δημόσια εγγραφή χρηστών εδώ.</p>
+    </section>
+
+    <section id="app-view" class="hidden">
+      <section class="panel" aria-labelledby="form-title">
+        <h2 id="form-title">Νέα εγγραφή μαθήματος</h2>
+        <form id="lesson-form">
+          <div class="grid">
+            <div class="field"><label for="lesson-date">Ημερομηνία *</label><input id="lesson-date" type="date" required></div>
+            <div class="field"><label for="section">Τμήμα *</label><input id="section" list="section-options" maxlength="120" placeholder="π.χ. Γ1 – Πληροφορική" required><datalist id="section-options"></datalist></div>
+          </div>
+          <div class="field"><label for="subject">Ύλη που δίδαξα *</label><textarea id="subject" required maxlength="10000" placeholder="Τι κάναμε στο μάθημα;"></textarea></div>
+          <div class="field"><label for="homework">Ασκήσεις για το σπίτι</label><textarea id="homework" maxlength="10000" placeholder="Βιβλίο, σελίδες, αριθμοί ασκήσεων…"></textarea></div>
+          <div class="field"><label for="notes">Παρατηρήσεις / επόμενο μάθημα</label><textarea id="notes" maxlength="10000" placeholder="Τι να θυμηθώ την επόμενη φορά;"></textarea></div>
+          <div class="actions"><button class="primary" id="save-btn" type="submit">Αποθήκευση</button><button class="secondary hidden" id="cancel-edit" type="button">Ακύρωση επεξεργασίας</button></div>
+        </form>
+        <div id="form-status" class="status" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="history-title">
+        <div class="entry-top"><h2 id="history-title">Ιστορικό μαθημάτων</h2><button id="export-btn" class="secondary" type="button">Εξαγωγή CSV</button></div>
+        <div class="toolbar"><input id="search" type="search" placeholder="Αναζήτηση ύλης, ασκήσεων…" aria-label="Αναζήτηση εγγραφών"><select id="filter-section" aria-label="Φίλτρο τμήματος"><option value="">Όλα τα τμήματα</option></select></div>
+        <div id="list-status" class="status" role="status" aria-live="polite"></div>
+        <div id="entries"></div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    // ====== ΣΥΜΠΛΗΡΩΣΕ ΜΟΝΟ ΑΥΤΕΣ ΤΙΣ 2 ΓΡΑΜΜΕΣ ======
+    const SUPABASE_URL = 'https://sqydkarecatqjgztfron.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_fpH76yPhsaDPGpzGAfil5w_K-2zvrIk';
+    // ΠΟΤΕ secret key, service_role ή κωδικό βάσης δεδομένων εδώ.
+
+    const $ = id => document.getElementById(id);
+    const show = (id, visible) => $(id).classList.toggle('hidden', !visible);
+    const status = (id, message, kind = '') => {
+      $(id).textContent = message;
+      $(id).className = `status ${kind}`;
+    };
+    const localDate = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    };
+    const dateLabel = date => {
+      const [year, month, day] = date.split('-');
+      return `${day}/${month}/${year}`;
+    };
+    let client, currentUser = null, lessons = [], editingId = null;
+    $('lesson-date').value = localDate();
+
+    function resetEditor() {
+      editingId = null;
+      $('lesson-form').reset();
+      $('lesson-date').value = localDate();
+      $('form-title').textContent = 'Νέα εγγραφή μαθήματος';
+      $('save-btn').textContent = 'Αποθήκευση';
+      show('cancel-edit', false);
+    }
+
+    function setView(loggedIn) {
+      show('login-view', !loggedIn);
+      show('app-view', loggedIn);
+      show('account', loggedIn);
+      $('user-email').textContent = loggedIn ? currentUser?.email || '' : '';
+      if (!loggedIn) {
+        lessons = []; editingId = null;
+        $('entries').replaceChildren();
+        $('password').value = '';
+      }
+    }
+
+    function populateSections() {
+      const values = [...new Set(lessons.map(item => item.section))].sort((a,b) => a.localeCompare(b, 'el'));
+      const selected = $('filter-section').value;
+      $('filter-section').replaceChildren(new Option('Όλα τα τμήματα',''));
+      $('section-options').replaceChildren();
+      for (const value of values) {
+        $('filter-section').add(new Option(value,value));
+        $('section-options').append(new Option(value,value));
+      }
+      $('filter-section').value = values.includes(selected) ? selected : '';
+    }
+
+    function addDetail(card, heading, content) {
+      if (!content) return;
+      const p = document.createElement('p');
+      const strong = document.createElement('strong');
+      strong.textContent = `${heading}: `;
+      const txt = document.createTextNode(content);
+      p.append(strong, txt);
+      card.append(p);
+    }
+
+    function renderLessons() {
+      const q = $('search').value.toLocaleLowerCase('el').trim();
+      const selectedSection = $('filter-section').value;
+      const filtered = lessons.filter(item =>
+        (!selectedSection || item.section === selectedSection) &&
+        (!q || [item.lesson_date, item.section, item.subject, item.homework, item.notes]
+          .some(value => (value || '').toLocaleLowerCase('el').includes(q)))
+      );
+      const list = $('entries');
+      list.replaceChildren();
+      status('list-status', `${filtered.length} εγγραφές`);
+      for (const item of filtered) {
+        const card = document.createElement('article');
+        card.className = 'entry';
+        const top = document.createElement('div');
+        top.className = 'entry-top';
+        const tag = document.createElement('span');
+        tag.className = 'tag'; tag.textContent = item.section;
+        const date = document.createElement('span');
+        date.className = 'subtle'; date.textContent = dateLabel(item.lesson_date);
+        top.append(tag, date); card.append(top);
+        addDetail(card, 'Ύλη', item.subject);
+        addDetail(card, 'Ασκήσεις', item.homework);
+        addDetail(card, 'Παρατηρήσεις', item.notes);
+        const actions = document.createElement('div'); actions.className = 'actions';
+        const edit = document.createElement('button');
+        edit.type = 'button'; edit.className = 'secondary'; edit.textContent = 'Επεξεργασία';
+        edit.addEventListener('click', () => startEditing(item.id));
+        const del = document.createElement('button');
+        del.type = 'button'; del.className = 'danger'; del.textContent = 'Διαγραφή';
+        del.addEventListener('click', () => deleteLesson(item.id));
+        actions.append(edit,del); card.append(actions); list.append(card);
+      }
+    }
+
+    async function loadLessons() {
+      if (!currentUser) return;
+      status('list-status', 'Φόρτωση μαθημάτων…');
+      const { data, error } = await client.from('lesson_entries')
+        .select('id,lesson_date,section,subject,homework,notes,created_at')
+        .order('lesson_date', { ascending:false }).order('created_at', { ascending:false });
+      if (error) {
+        status('list-status', 'Δεν φορτώθηκαν οι εγγραφές: ' + error.message, 'error');
+        return;
+      }
+      lessons = data || [];
+      populateSections();
+      renderLessons();
+    }
+
+    async function login(event) {
+      event.preventDefault();
+      $('login-btn').disabled = true;
+      status('login-status', 'Σύνδεση…');
+      try {
+        const { data, error } = await client.auth.signInWithPassword({
+          email:$('email').value.trim(), password:$('password').value
+        });
+        if (error) throw error;
+        currentUser = data.user;
+        setView(true);
+        $('password').value = '';
+        status('login-status', '');
+        await loadLessons();
+      } catch(error) {
+        status('login-status', 'Αποτυχία σύνδεσης: ' + error.message, 'error');
+      } finally { $('login-btn').disabled = false; }
+    }
+
+    async function saveLesson(event) {
+      event.preventDefault();
+      if (!currentUser) return;
+      const payload = {
+        lesson_date:$('lesson-date').value,
+        section:$('section').value.trim(),
+        subject:$('subject').value.trim(),
+        homework:$('homework').value.trim(),
+        notes:$('notes').value.trim()
+      };
+      if (!payload.section || !payload.subject) {
+        status('form-status','Συμπλήρωσε τμήμα και ύλη.','error'); return;
+      }
+      $('save-btn').disabled = true;
+      status('form-status','Αποθήκευση…');
+      try {
+        let query = editingId
+          ? client.from('lesson_entries').update(payload).eq('id',editingId).eq('user_id',currentUser.id)
+          : client.from('lesson_entries').insert(payload);
+        const { data, error } = await query.select('id');
+        if (error) throw error;
+        if (!data?.length) throw new Error('Δεν επιβεβαιώθηκε η αποθήκευση.');
+        resetEditor();
+        status('form-status', 'Η εγγραφή αποθηκεύτηκε στη βάση.','success');
+        await loadLessons();
+      } catch(error) {
+        status('form-status','Δεν αποθηκεύτηκε: ' + error.message, 'error');
+      } finally { $('save-btn').disabled = false; }
+    }
+
+    function startEditing(id) {
+      const item = lessons.find(l => l.id === id);
+      if (!item) return;
+      editingId = id;
+      $('lesson-date').value = item.lesson_date;
+      $('section').value = item.section;
+      $('subject').value = item.subject;
+      $('homework').value = item.homework;
+      $('notes').value = item.notes;
+      $('form-title').textContent = 'Επεξεργασία μαθήματος';
+      $('save-btn').textContent = 'Αποθήκευση αλλαγών';
+      show('cancel-edit',true);
+      status('form-status','');
+      $('lesson-form').scrollIntoView({ behavior:'smooth',block:'start' });
+      $('subject').focus({preventScroll:true});
+    }
+
+    async function deleteLesson(id) {
+      if (!currentUser || !confirm('Να διαγραφεί οριστικά αυτή η εγγραφή;')) return;
+      const { data, error } = await client.from('lesson_entries').delete()
+        .eq('id',id).eq('user_id',currentUser.id).select('id');
+      if (error || !data?.length) {
+        status('list-status','Η διαγραφή απέτυχε: ' + (error?.message || 'Δεν βρέθηκε η εγγραφή.'),'error');
+        return;
+      }
+      if (editingId === id) resetEditor();
+      await loadLessons();
+    }
+
+    function exportCsv() {
+      if (!lessons.length) { status('list-status','Δεν υπάρχουν εγγραφές για εξαγωγή.'); return; }
+      const columns = ['lesson_date','section','subject','homework','notes'];
+      const csvCell = value => `"${String(value ?? '').replaceAll('"','""')}"`;
+      const csv = '\uFEFF' + [
+        ['Ημερομηνία','Τμήμα','Ύλη','Ασκήσεις','Παρατηρήσεις'].map(csvCell).join(';'),
+        ...lessons.map(item => columns.map(key => csvCell(item[key])).join(';'))
+      ].join('\r\n');
+      const url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+      const a = document.createElement('a');
+      a.href = url; a.download = `imerologio-${localDate()}.csv`;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url),1000);
+    }
+
+    async function init() {
+      const hasConfig = /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(SUPABASE_URL) &&
+        /^sb_publishable_[A-Za-z0-9_-]+$/.test(SUPABASE_PUBLISHABLE_KEY);
+      if (!hasConfig) { show('loading',false); show('setup',true); return; }
+      if (!window.supabase?.createClient) {
+        show('loading',false); show('setup',true);
+        $('setup').querySelector('p').textContent = 'Δεν φορτώθηκε η βιβλιοθήκη Supabase. Έλεγξε τη σύνδεση στο Internet και ανανέωσε τη σελίδα.';
+        return;
+      }
+      client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+        auth:{ persistSession:true, autoRefreshToken:true }
+      });
+      client.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT') { currentUser = null; setView(false); }
+        if (event === 'SIGNED_IN' && session?.user && currentUser?.id !== session.user.id) {
+          currentUser = session.user;
+          setView(true);
+          setTimeout(() => { void loadLessons(); },0);
+        }
+      });
+      try {
+        const { data:{session}, error } = await client.auth.getSession();
+        if (error) throw error;
+        currentUser = session?.user || null;
+        setView(!!currentUser);
+        if (currentUser) await loadLessons();
+      } catch(error) {
+        setView(false);
+        status('login-status','Δεν ολοκληρώθηκε ο έλεγχος σύνδεσης: ' + error.message,'error');
+      } finally { show('loading',false); }
+    }
+
+    $('login-form').addEventListener('submit',login);
+    $('lesson-form').addEventListener('submit',saveLesson);
+    $('cancel-edit').addEventListener('click',() => {resetEditor(); status('form-status','');});
+    $('search').addEventListener('input',renderLessons);
+    $('filter-section').addEventListener('change',renderLessons);
+    $('export-btn').addEventListener('click',exportCsv);
+    $('logout').addEventListener('click',async () => {
+      const {error} = await client.auth.signOut();
+      if (error) status('list-status','Αποτυχία αποσύνδεσης: ' + error.message,'error');
+      else { currentUser=null; setView(false); }
+    });
+    void init();
+  </script>
+</body>
+</html>
